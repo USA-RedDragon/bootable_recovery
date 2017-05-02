@@ -6,6 +6,7 @@ extern "C" {
 #endif
 
 int TWinstall_zip(const char* path, int* wipe_cache);
+int TWinstall_gzip(const char* path, int* wipe_cache);
 
 #ifdef __cplusplus
 }

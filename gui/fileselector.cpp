@@ -50,6 +50,9 @@ GUIFileSelector::GUIFileSelector(xml_node<>* node) : GUIScrollList(node)
 		attr = child->first_attribute("extn");
 		if (attr)
 			mExtn = attr->value();
+		attr = child->first_attribute("extn2");
+		if (attr)
+			mExtn2 = attr->value();
 		attr = child->first_attribute("folders");
 		if (attr)
 			mShowFolders = atoi(attr->value());
@@ -270,6 +273,8 @@ int GUIFileSelector::GetFileList(const std::string folder)
 				mFolderList.push_back(data);
 		} else if (data.fileType == DT_REG || data.fileType == DT_LNK || data.fileType == DT_BLK) {
 			if (mExtn.empty() || (data.fileName.length() > mExtn.length() && data.fileName.substr(data.fileName.length() - mExtn.length()) == mExtn)) {
+				mFileList.push_back(data);
+			} else if (mExtn2.empty() || (data.fileName.length() > mExtn2.length() && data.fileName.substr(data.fileName.length() - mExtn2.length()) == mExtn2)) {
 				mFileList.push_back(data);
 			}
 		}

@@ -57,6 +57,7 @@ extern "C" {
 	#include "gui/gui.h"
 	#include "cutils/properties.h"
 	int TWinstall_zip(const char* path, int* wipe_cache);
+	int TWinstall_gzip(const char* path, int* wipe_cache);
 }
 
 OpenRecoveryScript::VoidFunction OpenRecoveryScript::call_after_cli_command;
@@ -500,7 +501,12 @@ int OpenRecoveryScript::Install_Command(string Zip) {
 			gui_msg(Msg("installing_zip=Installing zip file '{1}'")(Zip));
 	}
 
-	ret_val = TWinstall_zip(Zip.c_str(), &wipe_cache);
+	std::string mExtn = ".tar.gz";
+	if ((Zip.length() > mExtn.length() && Zip.substr(Zip.length() - mExtn.length()) == mExtn)) {
+		ret_val = TWinstall_gzip(Zip.c_str(), &wipe_cache);
+	} else {
+		ret_val = TWinstall_zip(Zip.c_str(), &wipe_cache);
+	}
 	if (ret_val != 0) {
 		gui_msg(Msg(msg::kError, "zip_err=Error installing zip file '{1}'")(Zip));
 		ret_val = 1;

@@ -386,7 +386,12 @@ int GUIAction::flash_zip(std::string filename, int* wipe_cache)
 	if (simulate) {
 		simulate_progress_bar();
 	} else {
-		ret_val = TWinstall_zip(filename.c_str(), wipe_cache);
+		std::string mExtn = ".tar.gz";
+		if ((filename.length() > mExtn.length() && filename.substr(filename.length() - mExtn.length()) == mExtn)) {
+			ret_val = TWinstall_gzip(filename.c_str(), wipe_cache);
+		} else {
+			ret_val = TWinstall_zip(filename.c_str(), wipe_cache);
+		}
 
 		// Now, check if we need to ensure TWRP remains installed...
 		struct stat st;

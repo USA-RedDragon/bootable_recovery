@@ -400,3 +400,98 @@ extern "C" int TWinstall_zip(const char* path, int* wipe_cache) {
 	sysReleaseMap(&map);
 	return ret_val;
 }
+
+extern "C" int TWinstall_gzip(const char* path, int* wipe_cache) {
+	int ret_val, zip_verify = 1;
+	ZipArchive Zip;
+
+	if (strcmp(path, "error") == 0) {
+		LOGERR("Failed to get adb sideload file: '%s'\n", path);
+		return INSTALL_CORRUPT;
+	}
+
+	gui_msg(Msg("installing_zip=Installing gzip file '{1}'")(path));
+	if (strlen(path) < 9 || strncmp(path, "/sideload", 9) != 0) {
+		gui_msg("check_for_md5=Checking for MD5 file...");
+		twrpDigest md5sum;
+		md5sum.setfn(path);
+		switch (md5sum.verify_md5digest()) {
+		case MD5_OK:
+			gui_msg(Msg("md5_matched=MD5 matched for '{1}'.")(path));
+			break;
+		case MD5_NOT_FOUND:
+			gui_msg("no_md5=Skipping MD5 check: no MD5 file found");
+			break;
+		case MD5_FILE_UNREADABLE:
+			LOGERR("Skipping MD5 check: MD5 file unreadable\n");
+			break;
+		case MD5_MATCH_FAIL: // md5 did not match
+			LOGERR("Aborting zip install: MD5 verification failed\n");
+			return INSTALL_CORRUPT;
+		}
+	}
+
+#ifndef TW_OEM_BUILD
+	DataManager::GetValue(TW_SIGNED_ZIP_VERIFY_VAR, zip_verify);
+#endif
+	DataManager::SetProgress(0);
+
+	MemMapping map;
+	if (sysMapFile(path, &map) != 0) {
+		gui_msg(Msg(msg::kError, "fail_sysmap=Failed to map file '{1}'")(path));
+		return -1;
+	}
+
+	if (zip_verify) {
+		gui_msg("verify_zip_sig=Verifying zip signature...");
+		ret_val = verify_file(map.addr, map.length);
+		if (ret_val != VERIFY_SUCCESS) {
+			LOGINFO("Zip signature verification failed: %i\n", ret_val);
+			gui_err("verify_zip_fail=Zip signature verification failed!");
+			sysReleaseMap(&map);
+			return -1;
+		} else {
+			gui_msg("verify_zip_done=Zip signature verified successfully.");
+		}
+	}
+	ret_val = mzOpenZipArchive(map.addr, map.length, &Zip);
+	if (ret_val != 0) {
+		gui_err("zip_corrupt=Gzip file is corrupt!");
+		sysReleaseMap(&map);
+		return INSTALL_CORRUPT;
+	}
+
+	time_t start, stop;
+	time(&start);
+	const ZipEntry* file_location = mzFindZipEntry(&Zip, ASSUMED_UPDATE_BINARY_NAME);
+	if (file_location != NULL) {
+		LOGINFO("Update binary zip\n");
+		ret_val = Prepare_Update_Binary(path, &Zip, wipe_cache);
+		if (ret_val == INSTALL_SUCCESS)
+			ret_val = Run_Update_Binary(path, &Zip, wipe_cache, UPDATE_BINARY_ZIP_TYPE);
+	} else {
+		file_location = mzFindZipEntry(&Zip, AB_OTA);
+		if (file_location != NULL) {
+			LOGINFO("AB zip\n");
+			ret_val = Run_Update_Binary(path, &Zip, wipe_cache, AB_OTA_ZIP_TYPE);
+		} else {
+			file_location = mzFindZipEntry(&Zip, "ui.xml");
+			if (file_location != NULL) {
+				LOGINFO("TWRP theme zip\n");
+				ret_val = Install_Theme(path, &Zip);
+			} else {
+				mzCloseZipArchive(&Zip);
+				ret_val = INSTALL_CORRUPT;
+			}
+		}
+	}
+	time(&stop);
+	int total_time = (int) difftime(stop, start);
+	if (ret_val == INSTALL_CORRUPT) {
+		gui_err("invalid_zip_format=Invalid zip file format!");
+	} else {
+		LOGINFO("Install took %i second(s).\n", total_time);
+	}
+	sysReleaseMap(&map);
+	return ret_val;
+}
